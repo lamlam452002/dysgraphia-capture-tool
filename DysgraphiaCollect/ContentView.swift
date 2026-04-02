@@ -1,128 +1,148 @@
 import SwiftUI
 import PencilKit
 
+// MARK: - Main Application View
+
 struct ContentView: View {
+    @State private var studentID: String = ""
+    @State private var isDrawingActive = false
+    @State private var isReviewActive = false
     @State private var canvasView = PKCanvasView()
-    @State private var session: HandwritingSession? = HandwritingSession(studentID: "HS001", timestamp: Date())
-    @State private var showExportSheet = false
-    @State private var exportURL: URL?
-    
-    // UI State
-    @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var currentSession: HandwritingSession?
     
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            // MARK: - Sidebar: Controls & Stats
-            sidebarView
-                .navigationTitle("Cấu hình")
-        } detail: {
-            // MARK: - Main Area: Drawing Canvas
-            mainCanvasArea
-                .navigationTitle("Vùng viết")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        HStack {
-                            Button(action: clearCanvas) {
-                                Label("Xóa", systemImage: "trash")
-                            }
-                            .tint(.red)
+        NavigationStack {
+            ZStack {
+                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+                
+                VStack(spacing: 30) {
+                    // Header Section
+                    VStack(spacing: 8) {
+                        Image(systemName: "pencil.and.outline")
+                            .font(.system(size: 60))
+                            .foregroundStyle(.blue.gradient)
+                        Text("DysgraphiaCollect")
+                            .font(.largeTitle.bold())
+                        Text("Handwriting Data Capture & Analysis")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.top, 40)
+                    
+                    // Action Cards
+                    VStack(spacing: 16) {
+                        // 1. Capture Data Card
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("Data Collection", systemImage: "hand.draw.fill")
+                                .font(.headline)
                             
-                            Button(action: exportCSV) {
-                                Label("Xuất CSV", systemImage: "doc.text.fill")
+                            TextField("Enter Student ID", text: $studentID)
+                                .textFieldStyle(.roundedBorder)
+                                .autocorrectionDisabled()
+                                .padding(.vertical, 4)
+                            
+                            Button(action: startCapture) {
+                                Text("Start New Session")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(studentID.isEmpty ? Color.gray : Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
                             }
+                            .disabled(studentID.isEmpty)
+                        }
+                        .padding()
+                        .background(Color(uiColor: .secondarySystemGroupedBackground))
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.05), radius: 10)
+                        
+                        // 2. Expert Review Card
+                        Button(action: { isReviewActive = true }) {
+                            HStack {
+                                Image(systemName: "person.badge.shield.checkmark.fill")
+                                    .font(.title2)
+                                VStack(alignment: .leading) {
+                                    Text("Expert Review Mode")
+                                        .font(.headline)
+                                    Text("Labeling and session analysis")
+                                        .font(.caption)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .padding()
+                            .background(Color.orange.opacity(0.1))
+                            .foregroundColor(.orange)
+                            .cornerRadius(16)
+                        }
+                        
+                        Divider().padding(.vertical)
+                        
+                        // Recent Stats or Info
+                        HStack(spacing: 20) {
+                            MetricCard(title: "Status", value: "Ready", icon: "checkmark.circle.fill", color: .green)
+                            MetricCard(title: "Version", value: "2.0.0 Pro", icon: "sparkles", color: .purple)
                         }
                     }
-                }
-        }
-        .navigationSplitViewStyle(.balanced)
-        .sheet(isPresented: $showExportSheet) {
-            if let url = exportURL {
-                ShareSheet(activityItems: [url])
-            }
-        }
-    }
-    
-    // MARK: - Subviews
-    
-    private var sidebarView: some View {
-        List {
-            Section("Thông tin phiên") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Mã số học sinh")
-                        .font(.caption.bold())
-                        .foregroundColor(.secondary)
+                    .padding(.horizontal)
                     
-                    TextField("ID", text: Binding(
-                        get: { session?.studentID ?? "" },
-                        set: { session?.id = UUID(); session = HandwritingSession(studentID: $0, timestamp: Date()) }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
+                    Spacer()
                 }
-                .padding(.vertical, 8)
             }
-            
-            Section("Chỉ số đo lường") {
-                MetricCard(title: "Số nét vẽ", value: "\(session?.strokes.count ?? 0)", icon: "pencil.line", color: .blue)
-                MetricCard(title: "Tốc độ TB", value: String(format: "%.1f", averageSessionSpeed), icon: "speedometer", color: .orange)
-                MetricCard(title: "Độ giật (Jitter)", value: String(format: "%.2f", averageSessionJitter), icon: "waveform.path.ecg", color: .purple)
+            .navigationDestination(isPresented: $isDrawingActive) {
+                CaptureView(studentID: studentID, canvasView: $canvasView, session: $currentSession)
             }
-            
-            Section("Dữ liệu") {
-                Button(action: exportCSV) {
-                    Label("Xuất dữ liệu CSV", systemImage: "tablecells")
-                }
-                
-                Button(action: exportJSON) {
-                    Label("Lưu phiên (JSON)", systemImage: "shippingbox")
-                }
+            .fullScreenCover(isPresented: $isReviewActive) {
+                ExpertReviewView()
             }
         }
     }
     
-    private var mainCanvasArea: some View {
-        ZStack {
-            Color(UIColor.systemBackground)
-                .ignoresSafeArea()
+    private func startCapture() {
+        // Initialize new session
+        currentSession = HandwritingSession(studentID: studentID, strokes: [])
+        isDrawingActive = true
+    }
+}
+
+struct CaptureView: View {
+    let studentID: String
+    @Binding var canvasView: PKCanvasView
+    @Binding var session: HandwritingSession?
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Capture: \(studentID)")
+                        .font(.headline)
+                    Text("Pencil Data actively streaming...")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+                Spacer()
+                Button("Finish & Save") {
+                    saveSession()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .background(.thinMaterial)
             
-            // Lưới nền chuyên nghiệp
-            NotebookBackground()
-            
-            DrawingView(canvasView: $canvasView, session: $session)
-                .ignoresSafeArea()
+            ZStack {
+                NotebookBackground()
+                DrawingView(canvasView: $canvasView, session: $session)
+            }
         }
+        .navigationBarHidden(true)
     }
     
-    // MARK: - Logic
-    
-    private var averageSessionSpeed: Double {
-        guard let strokes = session?.strokes, !strokes.isEmpty else { return 0 }
-        return strokes.map { $0.averageSpeed }.reduce(0, +) / Double(strokes.count)
-    }
-    
-    private var averageSessionJitter: Double {
-        guard let strokes = session?.strokes, !strokes.isEmpty else { return 0 }
-        return strokes.map { $0.jitterMetric }.reduce(0, +) / Double(strokes.count)
-    }
-    
-    private func clearCanvas() {
-        canvasView.drawing = PKDrawing()
-        session?.strokes = []
-    }
-    
-    private func exportCSV() {
-        if let s = session {
-            exportURL = ExportManager.exportToCSV(session: s)
-            showExportSheet = true
+    private func saveSession() {
+        if let session = session {
+            ExportManager.saveSession(session)
         }
-    }
-    
-    private func exportJSON() {
-        if let s = session {
-            exportURL = ExportManager.exportToJSON(session: s)
-            showExportSheet = true
-        }
+        dismiss()
     }
 }
 

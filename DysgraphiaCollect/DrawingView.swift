@@ -23,6 +23,8 @@ struct DrawingView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: PKCanvasView, context: Context) {
+        context.coordinator.parent = self
+        
         // Cập nhật tool picker nếu cần
         if uiView.drawing.strokes.isEmpty && session?.strokes.isEmpty == true {
              context.coordinator.resetIndex()
