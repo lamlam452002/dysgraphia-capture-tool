@@ -74,7 +74,7 @@ struct TelemetryChartView: View {
                 }
                 
                 // 4. Jitter Summary
-                jitterSummary
+                // jitterSummary
             }
         }
     }
@@ -85,18 +85,20 @@ struct TelemetryChartView: View {
                 .font(.caption.bold())
                 .padding(.horizontal)
             
-            HStack(alignment: .bottom, spacing: 12) {
-                ForEach(session.strokes) { stroke in
-                    VStack {
-                        Text("\(stroke.jitterMetric, specifier: "%.1f")")
-                            .font(.system(size: 8, design: .monospaced))
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(stroke.jitterMetric > 5 ? Color.red : Color.green)
-                            .frame(width: 20, height: CGFloat(min(100, stroke.jitterMetric * 4)))
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .bottom, spacing: 12) {
+                    ForEach(session.strokes) { stroke in
+                        VStack {
+                            Text("\(stroke.jitterMetric, specifier: "%.1f")")
+                                .font(.system(size: 8, design: .monospaced))
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(stroke.jitterMetric > 5 ? Color.red : Color.green)
+                                .frame(width: 20, height: CGFloat(min(100, stroke.jitterMetric * 4)))
+                        }
                     }
                 }
+                .padding()
             }
-            .padding()
         }
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.1)))
         .padding(.horizontal)

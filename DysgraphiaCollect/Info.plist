@@ -15,6 +15,8 @@
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER).exampledocument</string>
 		</dict>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Ứng dụng cần Face ID để xác thực quyền truy cập của Chuyên gia.</string>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>

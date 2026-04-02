@@ -1,7 +1,6 @@
 import SwiftUI
 import PencilKit
-
-// MARK: - Main Application View
+import LocalAuthentication
 
 struct ContentView: View {
     @State private var studentID: String = ""
@@ -10,6 +9,8 @@ struct ContentView: View {
     @State private var canvasView = PKCanvasView()
     @State private var currentSession: HandwritingSession?
     
+    @State private var showAuthAlert = false
+    @State private var authError: String?
     var body: some View {
         NavigationStack {
             ZStack {
@@ -57,7 +58,7 @@ struct ContentView: View {
                         .shadow(color: .black.opacity(0.05), radius: 10)
                         
                         // 2. Expert Review Card
-                        Button(action: { isReviewActive = true }) {
+                        Button(action: authenticateExpert) {
                             HStack {
                                 Image(systemName: "person.badge.shield.checkmark.fill")
                                     .font(.title2)
@@ -81,7 +82,7 @@ struct ContentView: View {
                         // Recent Stats or Info
                         HStack(spacing: 20) {
                             MetricCard(title: "Status", value: "Ready", icon: "checkmark.circle.fill", color: .green)
-                            MetricCard(title: "Version", value: "2.0.0 Pro", icon: "sparkles", color: .purple)
+                            MetricCard(title: "Version", value: "1.0.0", icon: "sparkles", color: .purple)
                         }
                     }
                     .padding(.horizontal)
@@ -95,6 +96,11 @@ struct ContentView: View {
             .fullScreenCover(isPresented: $isReviewActive) {
                 ExpertReviewView()
             }
+            .alert("Access Denied", isPresented: $showAuthAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(authError ?? "Authentication required.")
+            }
         }
     }
     
@@ -102,6 +108,30 @@ struct ContentView: View {
         // Initialize new session
         currentSession = HandwritingSession(studentID: studentID, strokes: [])
         isDrawingActive = true
+    }
+    
+    private func authenticateExpert() {
+        let context = LAContext()
+        var error: NSError?
+        
+        // Dùng .deviceOwnerAuthentication sẽ TỰ ĐỘNG yêu cầu MẬT KHẨU IPAD nếu Face ID/Touch ID thất bại!
+        if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+            let reason = "Biometric / Device Passcode Authentication"
+            
+            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, authError in
+                DispatchQueue.main.async {
+                    if success {
+                        self.isReviewActive = true
+                    } else {
+                        self.authError = authError?.localizedDescription ?? "Authentication failed."
+                        self.showAuthAlert = true
+                    }
+                }
+            }
+        } else {
+            self.authError = "Tùy chọn bảo mật không có sẵn. Vui lòng cài passcode hoặc FaceID cho iPad."
+            self.showAuthAlert = true
+        }
     }
 }
 

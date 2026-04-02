@@ -284,12 +284,7 @@ struct SidebarView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: onBack) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.body.weight(.semibold))
-                            Text("Back")
-                        }
-                        .foregroundColor(.accentColor)
+                        Label("Back", systemImage: "chevron.backward")
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -530,20 +525,14 @@ struct SessionRow: View {
             }
             .font(.subheadline)
             
-            HStack(spacing: 6) {
-                Text("\(session.strokes.count) strokes")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                if session.annotation.isReviewed {
-                    Label("Reviewed", systemImage: "checkmark.seal.fill")
-                        .foregroundColor(.green)
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.1))
-                        .cornerRadius(4)
-                }
+            if session.annotation.isReviewed {
+                Label("Reviewed", systemImage: "checkmark.seal.fill")
+                    .foregroundColor(.green)
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(4)
             }
         }
         .padding(.vertical, 2)
@@ -556,96 +545,213 @@ struct ReviewDetailView: View {
     let session: HandwritingSession
     @ObservedObject var viewModel: ReviewViewModel
     
+    @State private var showCanvasFullscreen = false
+    @State private var showChartFullscreen = false
+    
     var body: some View {
-        VStack(spacing: 0) {
-            // Playback Header
-            HStack(spacing: 16) {
-                // Play / Pause
-                Button(action: viewModel.togglePlayback) {
-                    Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
-                        .background(Color.blue)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                
-                // Timeline
-                VStack(spacing: 6) {
-                    Slider(value: $viewModel.currentTime, in: 0...max(0.1, viewModel.maxTime))
-                        .tint(.blue)
-                    HStack {
-                        Text(String(format: "%.1fs", viewModel.currentTime))
-                        Spacer()
-                        Text(String(format: "%.1fs", viewModel.maxTime))
-                    }
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundColor(.secondary)
-                }
-                
-                // Speed Selector — pill tối giản
-                HStack(spacing: 0) {
-                    ForEach([0.5, 1.0, 2.0], id: \.self) { speed in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                viewModel.playbackSpeed = speed
-                            }
-                        } label: {
-                            Text(speed == 1.0 ? "1×" : (speed == 0.5 ? "½×" : "2×"))
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .frame(width: 36, height: 28)
-                                .foregroundColor(viewModel.playbackSpeed == speed ? .white : .secondary)
-                                .background(
-                                    viewModel.playbackSpeed == speed
-                                    ? Color.blue
-                                    : Color.clear
-                                )
-                                .cornerRadius(6)
+        ScrollView {
+            VStack(alignment: .center, spacing: 32) {
+                // Thumbnails Row
+                HStack(spacing: 24) {
+                    // Canvas Thumbnail
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeader(title: "Handwriting (Tap to Play)")
+                        ZStack {
+                            PlaybackCanvas(session: session, currentTime: .constant(viewModel.maxTime))
+                                .disabled(true) // Disable interaction in thumb
+                            
+                            Color.black.opacity(0.05)
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 64))
+                                .foregroundColor(Color.white.opacity(0.9))
+                                .shadow(radius: 6)
                         }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(3)
-                .background(Color(uiColor: .tertiarySystemFill))
-                .cornerRadius(9)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color(uiColor: .secondarySystemBackground))
-            
-            // Main content split
-            HStack(spacing: 0) {
-                VStack {
-                    PlaybackCanvas(session: session, currentTime: $viewModel.currentTime)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(height: 280)
+                        .frame(maxWidth: .infinity)
                         .background(Color.white)
-                        .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.05), radius: 10)
-                        .padding()
-                }
-                .frame(maxWidth: .infinity)
-                
-                Divider()
-                
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        SectionHeader(title: "Handwriting Telemetry")
-                        TelemetryChartView(session: session, currentTime: $viewModel.currentTime)
-                            .frame(height: 450)
-                        
-                        Divider()
-                        
-                        SectionHeader(title: "Expert Labeling (Level 0-5)")
-                        AnnotationFormView(session: session, viewModel: viewModel)
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+                        .onTapGesture {
+                            viewModel.currentTime = 0
+                            showCanvasFullscreen = true
+                        }
                     }
-                    .padding()
+                    
+                    // Chart Thumbnail
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeader(title: "Analysis (Tap to Zoom)")
+                        ZStack {
+                            TelemetryChartView(session: session, currentTime: .constant(viewModel.maxTime))
+                                .padding()
+                            Color.clear.contentShape(Rectangle()) // Catch tap
+                        }
+                        .frame(height: 280)
+                        .frame(maxWidth: .infinity)
+                        .background(Color(uiColor: .systemBackground))
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+                        .onTapGesture {
+                            showChartFullscreen = true
+                        }
+                    }
                 }
-                .frame(width: 400)
+                
+                // Form
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionHeader(title: "Expert Labeling (Level 0-5)")
+                    AnnotationFormView(session: session, viewModel: viewModel)
+                        .padding(24)
+                        .background(Color(uiColor: .systemBackground))
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+                }
+                .frame(maxWidth: 800)
             }
+            .padding(32)
         }
+        .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Analysis: \(session.studentID)")
         .navigationBarTitleDisplayMode(.inline)
+        // Modals
+        .fullScreenCover(isPresented: $showCanvasFullscreen, onDismiss: { viewModel.stopPlayback() }) {
+            CanvasPlaybackFullscreen(session: session, viewModel: viewModel, isPresented: $showCanvasFullscreen)
+        }
+        .fullScreenCover(isPresented: $showChartFullscreen, onDismiss: { viewModel.stopPlayback() }) {
+            ChartFullscreenView(session: session, viewModel: viewModel, isPresented: $showChartFullscreen)
+        }
+    }
+}
+
+// MARK: - Playback Header Control
+struct PlaybackHeader: View {
+    @ObservedObject var viewModel: ReviewViewModel
+    var body: some View {
+        HStack(spacing: 16) {
+            Button(action: viewModel.togglePlayback) {
+                Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Color.blue)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            
+            HStack(spacing: 8) {
+                Text(String(format: "%.1fs", viewModel.currentTime))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .frame(width: 36, alignment: .trailing)
+                
+                Slider(value: $viewModel.currentTime, in: 0...max(0.1, viewModel.maxTime))
+                    .tint(.blue)
+                
+                Text(String(format: "%.1fs", viewModel.maxTime))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .frame(width: 36, alignment: .leading)
+            }
+            
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    switch viewModel.playbackSpeed {
+                    case 0.5: viewModel.playbackSpeed = 1.0
+                    case 1.0: viewModel.playbackSpeed = 2.0
+                    default:  viewModel.playbackSpeed = 0.5
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 12))
+                    Text(viewModel.playbackSpeed == 1.0 ? "1×" : (viewModel.playbackSpeed == 0.5 ? "0.5×" : "2×"))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                }
+                .foregroundColor(.blue)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(uiColor: .secondarySystemBackground))
+    }
+}
+
+// MARK: - Helper bounds function for scrolling canvas
+func getCanvasBounds(for session: HandwritingSession) -> CGSize {
+    var maxX: CGFloat = 800
+    var maxY: CGFloat = 800
+    for stroke in session.strokes {
+        for p in stroke.points {
+            if p.x > maxX { maxX = p.x }
+            if p.y > maxY { maxY = p.y }
+        }
+    }
+    return CGSize(width: maxX + 100, height: maxY + 150)
+}
+
+// MARK: - Canvas Playback Fullscreen
+struct CanvasPlaybackFullscreen: View {
+    let session: HandwritingSession
+    @ObservedObject var viewModel: ReviewViewModel
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                PlaybackHeader(viewModel: viewModel)
+                ScrollView([.vertical, .horizontal]) {
+                    let bounds = getCanvasBounds(for: session)
+                    PlaybackCanvas(session: session, currentTime: $viewModel.currentTime)
+                        .frame(width: bounds.width, height: bounds.height)
+                        .background(Color.white)
+                }
+                .background(Color(uiColor: .systemGray6))
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { isPresented = false }) {
+                        Label("Back", systemImage: "chevron.backward")
+                    }
+                }
+            }
+            .navigationTitle("Playback Record: \(session.studentID)")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+// MARK: - Chart Fullscreen
+struct ChartFullscreenView: View {
+    let session: HandwritingSession
+    @ObservedObject var viewModel: ReviewViewModel
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView {
+                    TelemetryChartView(session: session, currentTime: $viewModel.currentTime)
+                        .frame(minHeight: 700)
+                        .padding()
+                }
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { isPresented = false }) {
+                        Label("Back", systemImage: "chevron.backward")
+                    }
+                }
+            }
+            .navigationTitle("Telemetry Zoom: \(session.studentID)")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
 
@@ -676,11 +782,11 @@ struct AnnotationFormView: View {
         VStack(alignment: .leading, spacing: 20) {
             // Score rows
             VStack(spacing: 12) {
-                ScoreRow(label: "Legibility", description: "Khả năng đọc", value: $annotation.legibilityScore)
-                ScoreRow(label: "Spacing", description: "Khoảng cách", value: $annotation.spacingScore)
-                ScoreRow(label: "Consistency", description: "Kích thước biến thiên", value: $annotation.sizeConsistencyScore)
-                ScoreRow(label: "Alignment", description: "Căn hàng", value: $annotation.lineAlignmentScore)
-                ScoreRow(label: "Pressure", description: "Lực nhấn phù hợp", value: $annotation.pressureScore)
+                ScoreRow(label: "Legibility", description: "", value: $annotation.legibilityScore)
+                ScoreRow(label: "Spacing", description: "", value: $annotation.spacingScore)
+                ScoreRow(label: "Consistency", description: "", value: $annotation.sizeConsistencyScore)
+                ScoreRow(label: "Alignment", description: "", value: $annotation.lineAlignmentScore)
+                ScoreRow(label: "Pressure", description: "", value: $annotation.pressureScore)
             }
             .onChange(of: annotation.legibilityScore) { _ in viewModel.hasUnsavedChanges = true }
             .onChange(of: annotation.spacingScore) { _ in viewModel.hasUnsavedChanges = true }
@@ -690,7 +796,7 @@ struct AnnotationFormView: View {
             
             // Notes
             VStack(alignment: .leading) {
-                Text("Notes (Ghi chú chuyên môn)")
+                Text("Notes")
                     .font(.subheadline.bold())
                 TextEditor(text: $annotation.notes)
                     .frame(height: 100)
@@ -754,18 +860,22 @@ struct ScoreRow: View {
     @Binding var value: Int
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .font(.subheadline.bold())
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.subheadline.bold())
+                        .foregroundColor(.primary)
+                    Text(description)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
                 Text("\(value)")
                     .font(.subheadline.monospacedDigit().bold())
-                    .foregroundColor(.blue)
+                    .frame(minWidth: 24, alignment: .trailing)
+                    .foregroundColor(.accentColor)
             }
-            Text(description)
-                .font(.caption2)
-                .foregroundColor(.secondary)
             
             Picker(label, selection: $value) {
                 ForEach(0...5, id: \.self) { i in

@@ -2,8 +2,8 @@ import Foundation
 import SwiftUI
 
 enum ExportFormat: String, CaseIterable, Identifiable {
-    case csv = "CSV (Bảng)"
-    case json = "JSON (Dữ liệu thô)"
+    case csv = "CSV"
+    case json = "JSON"
     var id: String { self.rawValue }
 }
 
