@@ -4,6 +4,7 @@ import SwiftUI
 enum ExportFormat: String, CaseIterable, Identifiable {
     case csv = "CSV"
     case json = "JSON"
+    case bundle = "Full Session"
     var id: String { self.rawValue }
 }
 
@@ -65,6 +66,7 @@ class ExportManager {
     
     // MARK: - Export (Xuất file theo yêu cầu)
     
+    @MainActor
     @discardableResult
     static func exportSession(_ session: HandwritingSession, format: ExportFormat) -> URL? {
         switch format {
@@ -72,6 +74,59 @@ class ExportManager {
             return exportToCSV(session)
         case .json:
             return exportToJSON(session)
+        case .bundle:
+            return exportToBundle(session)
+        }
+    }
+    
+    @MainActor
+    private static func exportToBundle(_ session: HandwritingSession) -> URL? {
+        let bundleName = "dysgraphia_\(session.studentID)_\(session.id.uuidString.prefix(6))"
+        let bundleURL = FileManager.default.temporaryDirectory.appendingPathComponent(bundleName, isDirectory: true)
+        
+        do {
+            if FileManager.default.fileExists(atPath: bundleURL.path) {
+                try FileManager.default.removeItem(at: bundleURL)
+            }
+            try FileManager.default.createDirectory(at: bundleURL, withIntermediateDirectories: true)
+            
+            // 1. JSON
+            if let jsonURL = exportToJSON(session) {
+                let dest = bundleURL.appendingPathComponent(jsonURL.lastPathComponent)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.copyItem(at: jsonURL, to: dest)
+            }
+            
+            // 2. CSV
+            if let csvURL = exportToCSV(session) {
+                let dest = bundleURL.appendingPathComponent(csvURL.lastPathComponent)
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.copyItem(at: csvURL, to: dest)
+            }
+            
+            // 3. PNG Image Render
+            // Cuộn thời gian đến khi kết thúc nét vẽ cuối cùng
+            let maxTime = session.strokes.flatMap { $0.points }.map { $0.timeOffset }.max() ?? 0
+            
+            // Dựng lại khung hình Landscape iPad để chụp tĩnh (4:3)
+            let captureFrame = ZStack {
+                NotebookBackground()
+                PlaybackCanvas(session: session, currentTime: .constant(maxTime + 1.0))
+            }.frame(width: 1080, height: 810)
+            
+            let renderer = ImageRenderer(content: captureFrame)
+            renderer.scale = 2.0 // Gấp đôi độ phân giải ảnh (Retina)
+            
+            if let image = renderer.uiImage, let data = image.pngData() {
+                let pngURL = bundleURL.appendingPathComponent("\(bundleName).png")
+                try data.write(to: pngURL)
+            }
+            
+            return bundleURL
+            
+        } catch {
+            print("Error creating folder bundle: \(error)")
+            return nil
         }
     }
     

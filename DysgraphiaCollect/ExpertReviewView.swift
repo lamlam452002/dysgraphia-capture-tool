@@ -92,6 +92,7 @@ final class ReviewViewModel: ObservableObject {
         loadSessions()
     }
     
+    @MainActor
     func exportData(annotation: ReviewAnnotation) {
         guard var session = selectedSession else { return }
         session.annotation = annotation
