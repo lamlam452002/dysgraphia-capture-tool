@@ -56,12 +56,15 @@ struct DrawingView: UIViewRepresentable {
             if strokes.count > lastProcessedStrokeIndex + 1 {
                 for i in (lastProcessedStrokeIndex + 1)..<strokes.count {
                     let pkStroke = strokes[i]
-                    let processedStroke = DataProcessor.process(pkStroke: pkStroke)
                     
-                    // Cập nhật session
-                    DispatchQueue.main.async {
-                        self.parent.session?.strokes.append(processedStroke)
-                        print("Stroke processed: \(processedStroke.points.count) points, Speed: \(processedStroke.averageSpeed)")
+                    if let session = parent.session {
+                        let processedStroke = DataProcessor.process(pkStroke: pkStroke, sessionStartTime: session.timestamp)
+                        
+                        // Cập nhật session
+                        DispatchQueue.main.async {
+                            self.parent.session?.strokes.append(processedStroke)
+                            print("Stroke processed: \(processedStroke.points.count) points, Speed: \(processedStroke.averageSpeed)")
+                        }
                     }
                 }
                 lastProcessedStrokeIndex = strokes.count - 1

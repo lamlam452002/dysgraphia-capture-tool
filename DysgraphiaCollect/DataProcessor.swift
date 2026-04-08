@@ -4,17 +4,24 @@ import CoreGraphics
 
 class DataProcessor {
     
-    /// Chuyển đổi PKStroke thành HandwritingStroke kèm theo các chỉ số tính toán
-    static func process(pkStroke: PKStroke) -> HandwritingStroke {
+    /// Chuyển đổi PKStroke thành HandwritingStroke kèm theo các chỉ số tính toán thời gian thực (Global Time)
+    static func process(pkStroke: PKStroke, sessionStartTime: Date) -> HandwritingStroke {
         let pkPoints = pkStroke.path.map { $0 }
         var strokePoints: [StrokePoint] = []
         
+        // Tính toán độ trễ (offset) từ lúc bắt đầu Session cho tới khi nét bút này được đặt bút xuống
+        let strokeStartTime = pkStroke.path.creationDate
+        let strokeDelayFromSessionStart = strokeStartTime.timeIntervalSince(sessionStartTime)
+        
         // 1. Chuyển đổi sang mô hình dữ liệu của chúng ta
         for pkPoint in pkPoints {
+            // Cộng dồn độ trễ nét vẽ + thời gian của điểm => Global Time của toàn phiên
+            let globalTimeOffset = strokeDelayFromSessionStart + pkPoint.timeOffset
+            
             let point = StrokePoint(
                 x: Double(pkPoint.location.x),
                 y: Double(pkPoint.location.y),
-                timeOffset: pkPoint.timeOffset,
+                timeOffset: globalTimeOffset,
                 force: Double(pkPoint.force),
                 azimuth: Double(pkPoint.azimuth),
                 altitude: Double(pkPoint.altitude)

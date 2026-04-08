@@ -57,6 +57,11 @@ final class ReviewViewModel: ObservableObject {
     }
     
     func startPlayback() {
+        // Tự động tua lại từ đầu nếu đã chạy hết
+        if currentTime >= maxTime - 0.01 {
+            currentTime = 0
+        }
+        
         isPlaying = true
         timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self = self else { return }

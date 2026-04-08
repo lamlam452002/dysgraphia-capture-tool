@@ -105,6 +105,9 @@ struct ContentView: View {
     }
     
     private func startCapture() {
+        // Clear previous drawing on the literal canvas
+        canvasView.drawing = PKDrawing()
+        
         // Initialize new session
         currentSession = HandwritingSession(studentID: studentID, strokes: [])
         isDrawingActive = true

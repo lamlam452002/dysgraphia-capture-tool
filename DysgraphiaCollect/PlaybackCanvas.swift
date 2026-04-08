@@ -6,6 +6,8 @@ struct PlaybackCanvas: View {
     
     var body: some View {
         Canvas { context, size in
+            var latestPoint: StrokePoint?
+            
             for stroke in session.strokes {
                 let points = stroke.points.filter { $0.timeOffset <= currentTime }
                 guard !points.isEmpty else { continue }
@@ -20,10 +22,19 @@ struct PlaybackCanvas: View {
                 // Nét vẽ chính
                 context.stroke(path, with: .color(.primary.opacity(0.8)), lineWidth: 2)
                 
-                // Chỉ báo điểm hiện tại (ngòi bút)
+                // Tìm kiếm điểm mới nhất trên toàn bộ mặt phẳng
                 if let lastPoint = points.last {
-                    drawPenIndicator(context: context, point: lastPoint)
+                    if latestPoint == nil || lastPoint.timeOffset > latestPoint!.timeOffset {
+                        latestPoint = lastPoint
+                    }
                 }
+            }
+            
+            // Chỉ báo điểm Mới nhất (ngòi bút)
+            // Chỉ vẽ Bóng Bút nếu tại thời điểm `currentTime` này, cây bút đang thực sự di chuyển 
+            // (Chênh lệch giữa thời gian điểm gần nhất và mốc slider phải nhỏ, tránh vẽ bóng bút ảo lúc đang nghỉ giải lao)
+            if let activePoint = latestPoint, (currentTime - activePoint.timeOffset) < 0.15 {
+                drawPenIndicator(context: context, point: activePoint)
             }
         }
         .background(Color.white)
