@@ -13,6 +13,12 @@ struct DrawingView: UIViewRepresentable {
         canvasView.backgroundColor = .clear
         canvasView.isOpaque = false
         
+        // QUAN TRỌNG: Ép buộc giao diện sáng để mực Đen không bị biến thành Trắng khi iPad ở Dark Mode
+        canvasView.overrideUserInterfaceStyle = .light
+        
+        // Mặc định luôn là bút mực đen để đồng bộ với giấy ô ly
+        canvasView.tool = PKInkingTool(.pen, color: .black, width: 2)
+        
         // Cấu hình ToolPicker
         let toolPicker = PKToolPicker()
         toolPicker.setVisible(true, forFirstResponder: canvasView)

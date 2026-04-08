@@ -149,7 +149,7 @@ class ExportManager {
     }
     
     private static func exportToCSV(_ session: HandwritingSession) -> URL? {
-        var csvString = "Timestamp,SessionID,StudentID,StrokeID,PointTimeOffset,X,Y,Force,Azimuth,Altitude,Speed,StrokeJitter,StrokeHeight,StrokeBaseline,StrokeSpacing,IsReviewed,Legibility,Spacing,Consistency,Alignment,PressureLabel,Notes\n"
+        var csvString = "Timestamp,SessionID,StudentID,StrokeID,PointTimeOffset,X,Y,Force,Azimuth,Altitude,Speed,TremorIndex,StrokeHeight,StrokeBaseline,StrokeSpacing,IsReviewed,Legibility,Spacing,Consistency,Alignment,PressureLabel,Notes\n"
         
         let dateFormatter = ISO8601DateFormatter()
         let timestampStr = dateFormatter.string(from: session.timestamp)
@@ -168,7 +168,7 @@ class ExportManager {
                     String(format: "%.4f", point.azimuth),
                     String(format: "%.4f", point.altitude),
                     String(format: "%.4f", point.speed ?? 0),
-                    String(format: "%.4f", stroke.jitterMetric),
+                    String(format: "%.4f", stroke.tremorIndex),
                     String(format: "%.2f", stroke.height ?? 0),
                     String(format: "%.2f", stroke.baselineY ?? 0),
                     String(format: "%.2f", stroke.spacingToPrevious ?? 0),

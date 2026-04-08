@@ -112,7 +112,7 @@ struct TelemetryChartView: View {
                 // 6. Căn lề / Viết lệch dòng (Alignment - Baseline)
                 MetricChartSection(
                     title: "Alignment (Baseline Drift)",
-                    units: "Y-axis px",
+                    units: "px",
                     color: .red,
                     currentTime: currentTime,
                     data: session.strokes.compactMap { stroke in
@@ -152,33 +152,33 @@ struct TelemetryChartView: View {
                     .foregroundStyle(.yellow)
                 }
                 
-                // 8. Jitter Summary
-                jitterSummary
+                // 8. Tremor Index (Run tay)
+                tremorIndexSummary
             }
         }
     }
     
-    private var jitterSummary: some View {
+    private var tremorIndexSummary: some View {
         MetricChartSection(
-            title: "Jitter Severity (Tremor)",
-            units: "Tremor index",
+            title: "Tremor Index",
+            units: "pt/s",
             color: .pink,
             currentTime: currentTime,
             data: session.strokes.compactMap { stroke in
-                let j = stroke.jitterMetric
+                let j = stroke.tremorIndex
                 guard let t = stroke.points.first?.timeOffset else { return nil }
                 return ChartPoint(time: t, value: j, strokeID: stroke.id.uuidString)
             }
         ) { point in
             LineMark(
                 x: .value("Time", point.time),
-                y: .value("Jitter", point.value)
+                y: .value("Tremor", point.value)
             )
             .foregroundStyle(.pink)
             
             AreaMark(
                 x: .value("Time", point.time),
-                y: .value("Jitter", point.value)
+                y: .value("Tremor", point.value)
             )
             .foregroundStyle(
                 LinearGradient(

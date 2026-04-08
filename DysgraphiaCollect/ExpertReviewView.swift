@@ -6,10 +6,24 @@ import Combine
 final class ReviewViewModel: ObservableObject {
     @Published var sessions: [HandwritingSession] = []
     @Published var deletedSessions: [HandwritingSession] = []
-    @Published var selectedSession: HandwritingSession?
+    @Published var selectedSession: HandwritingSession? {
+        didSet {
+            // Khi chọn phiên mới hoặc đóng phiên, luôn tắt Mắt Thần để đảm bảo tính khách quan ban đầu
+            showDiagnosticOverlay = false
+            currentTime = 0
+            stopPlayback()
+        }
+    }
     @Published var currentTime: TimeInterval = 0
     @Published var isPlaying = false
     @Published var playbackSpeed: Double = 1.0
+    
+    // Trạng thái Báo lỗi trực quan
+    @Published var showDiagnosticOverlay: Bool = false
+    
+    func clearSelection() {
+        selectedSession = nil
+    }
     
     // Trạng thái chưa lưu
     @Published var hasUnsavedChanges: Bool = false
@@ -174,6 +188,7 @@ struct ExpertReviewView: View {
                     if viewModel.hasUnsavedChanges {
                         showExitConfirmation = true
                     } else {
+                        viewModel.clearSelection()
                         dismiss()
                     }
                 },
@@ -397,6 +412,10 @@ struct StudentSessionListView: View {
                 }
         }
         .navigationTitle(studentID)
+        .onDisappear {
+            // Khi thoát khỏi danh sách session của 1 học sinh, đóng phiên đang chọn (nếu có)
+            viewModel.clearSelection()
+        }
         .alert("Delete Session?", isPresented: $showDeleteAlert) {
             Button("Delete", role: .destructive) {
                 if let s = sessionToDelete { viewModel.moveSessionToTrash(s) }
@@ -484,6 +503,9 @@ struct TrashSessionListView: View {
             }
         }
         .navigationTitle("Recently Deleted")
+        .onDisappear {
+            viewModel.clearSelection()
+        }
         .toolbar {
             if !viewModel.deletedSessions.isEmpty {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -563,7 +585,7 @@ struct ReviewDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         SectionHeader(title: "Handwriting (Tap to Play)")
                         ZStack {
-                            PlaybackCanvas(session: session, currentTime: .constant(viewModel.maxTime))
+                            PlaybackCanvas(session: session, currentTime: .constant(viewModel.maxTime), showAnalysis: viewModel.showDiagnosticOverlay)
                                 .disabled(true) // Disable interaction in thumb
                             
                             Color.black.opacity(0.05)
@@ -574,7 +596,7 @@ struct ReviewDetailView: View {
                         }
                         .frame(height: 280)
                         .frame(maxWidth: .infinity)
-                        .background(Color.white)
+                        .background(NotebookBackground())
                         .cornerRadius(16)
                         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
                         .onTapGesture {
@@ -659,6 +681,21 @@ struct PlaybackHeader: View {
             }
             
             Button {
+                withAnimation {
+                    viewModel.showDiagnosticOverlay.toggle()
+                }
+            } label: {
+                Image(systemName: "eye.trianglebadge.exclamationmark")
+                    .font(.system(size: 14))
+                    .foregroundColor(viewModel.showDiagnosticOverlay ? .white : .orange)
+                    .padding(8)
+                    .background(viewModel.showDiagnosticOverlay ? Color.orange : Color.orange.opacity(0.1))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Vẽ đè cảnh báo lỗi Hình Học (Kích thước & Khoảng cách)")
+            
+            Button {
                 withAnimation(.easeInOut(duration: 0.15)) {
                     switch viewModel.playbackSpeed {
                     case 0.5: viewModel.playbackSpeed = 1.0
@@ -712,19 +749,25 @@ struct CanvasPlaybackFullscreen: View {
                 PlaybackHeader(viewModel: viewModel)
                 ScrollView([.vertical, .horizontal]) {
                     let bounds = getCanvasBounds(for: session)
-                    PlaybackCanvas(session: session, currentTime: $viewModel.currentTime)
+                    PlaybackCanvas(session: session, currentTime: $viewModel.currentTime, showAnalysis: viewModel.showDiagnosticOverlay)
                         .frame(width: bounds.width, height: bounds.height)
-                        .background(Color.white)
+                        .background(NotebookBackground())
                 }
                 .background(Color(uiColor: .systemGray6))
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { isPresented = false }) {
+                    Button(action: { 
+                        viewModel.showDiagnosticOverlay = false
+                        isPresented = false 
+                    }) {
                         Label("Back", systemImage: "chevron.backward")
                     }
                 }
+            }
+            .onDisappear {
+                viewModel.showDiagnosticOverlay = false
             }
             .navigationTitle("Playback Record: \(session.studentID)")
             .navigationBarTitleDisplayMode(.inline)
@@ -750,10 +793,16 @@ struct ChartFullscreenView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { isPresented = false }) {
+                    Button(action: { 
+                        viewModel.showDiagnosticOverlay = false
+                        isPresented = false 
+                    }) {
                         Label("Back", systemImage: "chevron.backward")
                     }
                 }
+            }
+            .onDisappear {
+                viewModel.showDiagnosticOverlay = false
             }
             .navigationTitle("Telemetry Zoom: \(session.studentID)")
             .navigationBarTitleDisplayMode(.inline)

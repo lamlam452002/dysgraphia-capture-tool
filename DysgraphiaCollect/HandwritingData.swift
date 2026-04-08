@@ -33,19 +33,19 @@ struct HandwritingStroke: Codable, Identifiable, Hashable {
     // Các chỉ số tính toán cho chuyên gia
     let averageSpeed: Double
     let averageTilt: Double
-    let jitterMetric: Double
+    let tremorIndex: Double
     
     // Các rà soát hình học tự động (Graphonomics)
     var height: Double?             // Consistency: Chiều cao hộp nét chữ
     var baselineY: Double?          // Alignment: Điểm Y thấp nhất (đáy) của nét vẽ
     var spacingToPrevious: Double?  // Spacing: Khoảng cách từ lề phải của nét trước tới lề trái nét hiện tại
     
-    init(id: UUID = UUID(), points: [StrokePoint], averageSpeed: Double, averageTilt: Double, jitterMetric: Double, height: Double? = nil, baselineY: Double? = nil, spacingToPrevious: Double? = nil) {
+    init(id: UUID = UUID(), points: [StrokePoint], averageSpeed: Double, averageTilt: Double, tremorIndex: Double, height: Double? = nil, baselineY: Double? = nil, spacingToPrevious: Double? = nil) {
         self.id = id
         self.points = points
         self.averageSpeed = averageSpeed
         self.averageTilt = averageTilt
-        self.jitterMetric = jitterMetric
+        self.tremorIndex = tremorIndex
         self.height = height
         self.baselineY = baselineY
         self.spacingToPrevious = spacingToPrevious

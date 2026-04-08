@@ -47,8 +47,8 @@ class DataProcessor {
         let avgSpeed = speeds.reduce(0, +) / Double(max(1, speeds.count))
         let avgTilt = strokePoints.map { $0.altitude }.reduce(0, +) / Double(max(1, strokePoints.count))
         
-        // Jitter Metric: Độ lệch chuẩn của tốc độ hoặc độ lệch so với đường trung bình
-        let jitter = calculateJitter(points: strokePoints)
+        // Tremor Index: Biến thiên vận tốc tức thời
+        let tremorIndex = calculateJitter(points: strokePoints)
         
         // 4. Các tính toán Graphonomics tự động (Image Space: Hình học không gian)
         let xs = strokePoints.map { $0.x }
@@ -73,7 +73,7 @@ class DataProcessor {
             points: strokePoints,
             averageSpeed: avgSpeed,
             averageTilt: avgTilt,
-            jitterMetric: jitter,
+            tremorIndex: tremorIndex,
             height: height,
             baselineY: baselineY,
             spacingToPrevious: spacing
