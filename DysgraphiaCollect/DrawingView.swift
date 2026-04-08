@@ -39,12 +39,15 @@ struct DrawingView: UIViewRepresentable {
         var parent: DrawingView
         private var lastProcessedStrokeIndex = -1
         
+        private var calculatedIdleGap: TimeInterval = 0
+        
         init(_ parent: DrawingView) {
             self.parent = parent
         }
         
         func resetIndex() {
             lastProcessedStrokeIndex = -1
+            calculatedIdleGap = 0
         }
         
         /// Được gọi bất cứ khi nào bản vẽ thay đổi (thêm nét mới)
@@ -58,7 +61,15 @@ struct DrawingView: UIViewRepresentable {
                     let pkStroke = strokes[i]
                     
                     if let session = parent.session {
-                        let processedStroke = DataProcessor.process(pkStroke: pkStroke, sessionStartTime: session.timestamp)
+                        // Tính chính xác thời gian chờ (Idle Gap) ngay tại thời điểm nét đầu tiên vừa vẽ xong
+                        if i == 0 {
+                            let durationOfFirstStroke = pkStroke.path.map { $0.timeOffset }.max() ?? 0
+                            let approximateTouchDownDate = Date().addingTimeInterval(-durationOfFirstStroke)
+                            calculatedIdleGap = max(0, approximateTouchDownDate.timeIntervalSince(session.timestamp))
+                        }
+                        
+                        let baseCreationDate = strokes.first?.path.creationDate ?? Date()
+                        let processedStroke = DataProcessor.process(pkStroke: pkStroke, baseCreationDate: baseCreationDate, idleGap: calculatedIdleGap)
                         
                         // Cập nhật session
                         DispatchQueue.main.async {

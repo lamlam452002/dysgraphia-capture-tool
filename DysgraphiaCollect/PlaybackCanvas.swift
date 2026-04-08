@@ -19,8 +19,8 @@ struct PlaybackCanvas: View {
                     path.addLine(to: CGPoint(x: points[i].x, y: points[i].y))
                 }
                 
-                // Nét vẽ chính
-                context.stroke(path, with: .color(.primary.opacity(0.8)), lineWidth: 2)
+                // Nét vẽ chính (Sử dụng chốt cứng màu Đen/Xanh sậm để chống lỗi Dark Mode tàng hình)
+                context.stroke(path, with: .color(.black.opacity(0.8)), lineWidth: 2)
                 
                 // Tìm kiếm điểm mới nhất trên toàn bộ mặt phẳng
                 if let lastPoint = points.last {
@@ -31,13 +31,14 @@ struct PlaybackCanvas: View {
             }
             
             // Chỉ báo điểm Mới nhất (ngòi bút)
-            // Chỉ vẽ Bóng Bút nếu tại thời điểm `currentTime` này, cây bút đang thực sự di chuyển 
-            // (Chênh lệch giữa thời gian điểm gần nhất và mốc slider phải nhỏ, tránh vẽ bóng bút ảo lúc đang nghỉ giải lao)
-            if let activePoint = latestPoint, (currentTime - activePoint.timeOffset) < 0.15 {
+            // Chỉ định thời gian bù trừ để ẩn hiện bong bóng
+            // Ngón tay thường có tần số lấy mẫu (sample rate) rất thấp so với Apple Pencil
+            // Nên ta cho phép khoảng mù thời gian (khoảng cách giữa 2 pixel liền kề) là 1.0s để không bị đứt đoạn bóng bút.
+            if let activePoint = latestPoint, (currentTime - activePoint.timeOffset) < 1.0 {
                 drawPenIndicator(context: context, point: activePoint)
             }
         }
-        .background(Color.white)
+        .background(Color.white) // Nền tảng giấy trắng
         .drawingGroup() // Tối ưu hiệu năng rendering
     }
     
