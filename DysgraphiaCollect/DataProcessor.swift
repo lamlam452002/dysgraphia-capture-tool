@@ -4,8 +4,8 @@ import CoreGraphics
 
 class DataProcessor {
     
-    /// Chuyển đổi PKStroke thành HandwritingStroke kèm theo các chỉ số tính toán thời gian thực (Global Time)
-    static func process(pkStroke: PKStroke, baseCreationDate: Date, idleGap: TimeInterval) -> HandwritingStroke {
+    /// Chuyển đổi PKStroke thành HandwritingStroke kèm theo các chỉ số tính toán thời gian thực (Global Time) và Hình học (Graphonomics)
+    static func process(pkStroke: PKStroke, baseCreationDate: Date, idleGap: TimeInterval, previousStroke: HandwritingStroke? = nil) -> HandwritingStroke {
         let pkPoints = pkStroke.path.map { $0 }
         var strokePoints: [StrokePoint] = []
         
@@ -48,14 +48,35 @@ class DataProcessor {
         let avgTilt = strokePoints.map { $0.altitude }.reduce(0, +) / Double(max(1, strokePoints.count))
         
         // Jitter Metric: Độ lệch chuẩn của tốc độ hoặc độ lệch so với đường trung bình
-        // Ở đây chúng ta dùng độ biến thiên của tốc độ (Acceleration jitter)
         let jitter = calculateJitter(points: strokePoints)
+        
+        // 4. Các tính toán Graphonomics tự động (Image Space: Hình học không gian)
+        let xs = strokePoints.map { $0.x }
+        let ys = strokePoints.map { $0.y }
+        
+        let minX = xs.min() ?? 0
+        let maxX = xs.max() ?? 0
+        let minY = ys.min() ?? 0
+        let maxY = ys.max() ?? 0
+        
+        let height = maxY - minY
+        let baselineY = maxY // Trong hệ tọa độ iOS, Y max nằm ở dưới đáy màn hình
+        
+        var spacing: Double? = nil
+        if let prevStroke = previousStroke {
+            let prevXs = prevStroke.points.map { $0.x }
+            let prevMaxX = prevXs.max() ?? 0
+            spacing = minX - prevMaxX // Khoảng cách giãn chữ theo trục ngang
+        }
         
         return HandwritingStroke(
             points: strokePoints,
             averageSpeed: avgSpeed,
             averageTilt: avgTilt,
-            jitterMetric: jitter
+            jitterMetric: jitter,
+            height: height,
+            baselineY: baselineY,
+            spacingToPrevious: spacing
         )
     }
     

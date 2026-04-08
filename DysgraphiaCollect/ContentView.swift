@@ -172,8 +172,11 @@ struct CaptureView: View {
     }
     
     private func saveSession() {
-        if let session = session {
+        // Chỉ tiến hành quy trình lưu file khi Session tồn tại và có chứa ít nhất 1 nét vẽ
+        if let session = session, !session.strokes.isEmpty {
             ExportManager.saveSession(session)
+        } else {
+            print("Đã hủy bỏ Session trống (không có nét vẽ nào).")
         }
         dismiss()
     }
@@ -210,25 +213,51 @@ struct MetricCard: View {
 struct NotebookBackground: View {
     var body: some View {
         GeometryReader { geo in
+            let gridSize: CGFloat = 16 // Kích thước 1 ô ly con
+            let majorGridSpacing: CGFloat = gridSize * 5 // 5 ô ly con gộp thành 1 khối ô vuông lớn (Vở 5 ô ly)
+            
+            // Màu mực in trên giấy (Xanh lơ Cyan chuẩn vở Việt Nam)
+            let inkColor = Color(red: 0.0, green: 0.6, blue: 0.8)
+            
+            // 1. Mạch kẻ mờ (Các dòng kẻ con nằm bên trong)
             Path { path in
-                let spacing: CGFloat = 45
-                let verticalMargin: CGFloat = 60
-                
-                // Dòng kẻ ngang
-                for y in stride(from: verticalMargin, to: geo.size.height, by: spacing) {
+                for y in stride(from: 0, to: geo.size.height, by: gridSize) {
+                    if y.truncatingRemainder(dividingBy: majorGridSpacing) != 0 {
+                        path.move(to: CGPoint(x: 0, y: y))
+                        path.addLine(to: CGPoint(x: geo.size.width, y: y))
+                    }
+                }
+                for x in stride(from: 0, to: geo.size.width, by: gridSize) {
+                    if x.truncatingRemainder(dividingBy: majorGridSpacing) != 0 {
+                        path.move(to: CGPoint(x: x, y: 0))
+                        path.addLine(to: CGPoint(x: x, y: geo.size.height))
+                    }
+                }
+            }
+            .stroke(inkColor.opacity(0.2), lineWidth: 0.5) // Nét cực mảnh
+            
+            // 2. Mạch kẻ đậm (Các đường viền khung lớn)
+            Path { path in
+                for y in stride(from: 0, to: geo.size.height, by: majorGridSpacing) {
                     path.move(to: CGPoint(x: 0, y: y))
                     path.addLine(to: CGPoint(x: geo.size.width, y: y))
                 }
+                for x in stride(from: 0, to: geo.size.width, by: majorGridSpacing) {
+                    path.move(to: CGPoint(x: x, y: 0))
+                    path.addLine(to: CGPoint(x: x, y: geo.size.height))
+                }
             }
-            .stroke(Color.blue.opacity(0.15), lineWidth: 1)
+            .stroke(inkColor.opacity(0.4), lineWidth: 1.2) // Nét đậm nhưng không gắt
             
-            // Đường lề đỏ
+            // 3. Đường lề đỏ (Cột lề lùi vào 1 khối lớn rưỡi hoặc 2 khối)
             Path { path in
-                path.move(to: CGPoint(x: 80, y: 0))
-                path.addLine(to: CGPoint(x: 80, y: geo.size.height))
+                let marginX = majorGridSpacing * 1.5
+                path.move(to: CGPoint(x: marginX, y: 0))
+                path.addLine(to: CGPoint(x: marginX, y: geo.size.height))
             }
-            .stroke(Color.red.opacity(0.3), lineWidth: 2)
+            .stroke(Color.red.opacity(0.4), lineWidth: 1.5)
         }
+        .background(Color.white) // Giấy luôn trắng
     }
 }
 

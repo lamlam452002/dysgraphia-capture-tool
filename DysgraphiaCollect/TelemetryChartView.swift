@@ -73,35 +73,121 @@ struct TelemetryChartView: View {
                     )
                 }
                 
-                // 4. Jitter Summary
-                // jitterSummary
+                // 4. Hướng bút (Azimuth)
+                MetricChartSection(
+                    title: "Pen Azimuth (Angle)",
+                    units: "rad",
+                    color: .teal, // Dùng màu Teal để dễ phân biệt với các biểu đồ khác
+                    currentTime: currentTime,
+                    data: session.strokes.flatMap { stroke in
+                        stroke.points.map { ChartPoint(time: $0.timeOffset, value: $0.azimuth, strokeID: stroke.id.uuidString) }
+                    }
+                ) { point in
+                    LineMark(
+                        x: .value("Time", point.time),
+                        y: .value("Azimuth", point.value)
+                    )
+                    .foregroundStyle(.teal)
+                }
+                
+                // 5. Độ đồng đều (Consistency - Stroke Height)
+                MetricChartSection(
+                    title: "Size Consistency (Stroke Height)",
+                    units: "px",
+                    color: .green,
+                    currentTime: currentTime,
+                    data: session.strokes.compactMap { stroke in
+                        guard let h = stroke.height, let t = stroke.points.first?.timeOffset else { return nil }
+                        return ChartPoint(time: t, value: h, strokeID: stroke.id.uuidString)
+                    }
+                ) { point in
+                    BarMark(
+                        x: .value("Time", point.time),
+                        y: .value("Height", point.value),
+                        width: .fixed(6)
+                    )
+                    .foregroundStyle(.green)
+                }
+                
+                // 6. Căn lề / Viết lệch dòng (Alignment - Baseline)
+                MetricChartSection(
+                    title: "Alignment (Baseline Drift)",
+                    units: "Y-axis px",
+                    color: .red,
+                    currentTime: currentTime,
+                    data: session.strokes.compactMap { stroke in
+                        guard let b = stroke.baselineY, let t = stroke.points.first?.timeOffset else { return nil }
+                        return ChartPoint(time: t, value: b, strokeID: stroke.id.uuidString)
+                    }
+                ) { point in
+                    LineMark(
+                        x: .value("Time", point.time),
+                        y: .value("Baseline", point.value)
+                    )
+                    .foregroundStyle(.red)
+                    
+                    PointMark(
+                        x: .value("Time", point.time),
+                        y: .value("Baseline", point.value)
+                    )
+                    .foregroundStyle(.red)
+                }
+                
+                // 7. Mật độ giãn cách chữ (Spacing)
+                MetricChartSection(
+                    title: "Spacing (Gap to Previous Stroke)",
+                    units: "px",
+                    color: .yellow,
+                    currentTime: currentTime,
+                    data: session.strokes.compactMap { stroke in
+                        guard let s = stroke.spacingToPrevious, let t = stroke.points.first?.timeOffset else { return nil }
+                        return ChartPoint(time: t, value: s, strokeID: stroke.id.uuidString)
+                    }
+                ) { point in
+                    BarMark(
+                        x: .value("Time", point.time),
+                        y: .value("Spacing Gap", point.value),
+                        width: .fixed(4)
+                    )
+                    .foregroundStyle(.yellow)
+                }
+                
+                // 8. Jitter Summary
+                jitterSummary
             }
         }
     }
     
     private var jitterSummary: some View {
-        VStack(alignment: .leading) {
-            Text("Jitter Analysis per Stroke")
-                .font(.caption.bold())
-                .padding(.horizontal)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: 12) {
-                    ForEach(session.strokes) { stroke in
-                        VStack {
-                            Text("\(stroke.jitterMetric, specifier: "%.1f")")
-                                .font(.system(size: 8, design: .monospaced))
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(stroke.jitterMetric > 5 ? Color.red : Color.green)
-                                .frame(width: 20, height: CGFloat(min(100, stroke.jitterMetric * 4)))
-                        }
-                    }
-                }
-                .padding()
+        MetricChartSection(
+            title: "Jitter Severity (Tremor)",
+            units: "Tremor index",
+            color: .pink,
+            currentTime: currentTime,
+            data: session.strokes.compactMap { stroke in
+                let j = stroke.jitterMetric
+                guard let t = stroke.points.first?.timeOffset else { return nil }
+                return ChartPoint(time: t, value: j, strokeID: stroke.id.uuidString)
             }
+        ) { point in
+            LineMark(
+                x: .value("Time", point.time),
+                y: .value("Jitter", point.value)
+            )
+            .foregroundStyle(.pink)
+            
+            AreaMark(
+                x: .value("Time", point.time),
+                y: .value("Jitter", point.value)
+            )
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [.pink.opacity(0.3), .pink.opacity(0.0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
         }
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.1)))
-        .padding(.horizontal)
     }
 }
 

@@ -69,7 +69,9 @@ struct DrawingView: UIViewRepresentable {
                         }
                         
                         let baseCreationDate = strokes.first?.path.creationDate ?? Date()
-                        let processedStroke = DataProcessor.process(pkStroke: pkStroke, baseCreationDate: baseCreationDate, idleGap: calculatedIdleGap)
+                        // Truyền nét đằng trước vào để tính toán khoảng cách (Spacing Gap)
+                        let previousStroke = parent.session?.strokes.last
+                        let processedStroke = DataProcessor.process(pkStroke: pkStroke, baseCreationDate: baseCreationDate, idleGap: calculatedIdleGap, previousStroke: previousStroke)
                         
                         // Cập nhật session
                         DispatchQueue.main.async {

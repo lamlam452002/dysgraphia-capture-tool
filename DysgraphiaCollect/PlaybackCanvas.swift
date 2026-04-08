@@ -38,7 +38,7 @@ struct PlaybackCanvas: View {
                 drawPenIndicator(context: context, point: activePoint)
             }
         }
-        .background(Color.white) // Nền tảng giấy trắng
+        .background(NotebookBackground()) // Ốp Vở kẻ 4 ô ly làm nền
         .drawingGroup() // Tối ưu hiệu năng rendering
     }
     
