@@ -29,7 +29,8 @@ class DataProcessor {
             strokePoints.append(point)
         }
         
-        // 2. Tính toán tốc độ giữa các điểm
+        // 2. Tính toán tốc độ giữa các điểm với bộ lọc nhiễu thời gian
+        let minDT: TimeInterval = 0.006 // Ngưỡng tối thiểu (500Hz) để tránh spike vận tốc do dt siêu nhỏ
         for i in 1..<strokePoints.count {
             let p1 = strokePoints[i-1]
             let p2 = strokePoints[i]
@@ -37,17 +38,20 @@ class DataProcessor {
             let dist = distance(x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y)
             let dt = p2.timeOffset - p1.timeOffset
             
-            if dt > 0 {
+            if dt >= minDT {
                 strokePoints[i].speed = dist / dt
+            } else if i > 1 {
+                // Nếu dt quá nhỏ, mượn speed của điểm trước đó để duy trì tính liên tục
+                strokePoints[i].speed = strokePoints[i-1].speed
             }
         }
         
-        // 3. Tính toán các chỉ số trung bình và Jitter
+        // 3. Tính toán các chỉ số trung bình và Tremor Index (với làm mượt)
         let speeds = strokePoints.compactMap { $0.speed }
         let avgSpeed = speeds.reduce(0, +) / Double(max(1, speeds.count))
         let avgTilt = strokePoints.map { $0.altitude }.reduce(0, +) / Double(max(1, strokePoints.count))
         
-        // Tremor Index: Biến thiên vận tốc tức thời
+        // Tremor Index: Biến thiên vận tốc tức thời (đã được làm mượt)
         let tremorIndex = calculateJitter(points: strokePoints)
         
         // 4. Các tính toán Graphonomics tự động (Image Space: Hình học không gian)
@@ -84,21 +88,33 @@ class DataProcessor {
         return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2))
     }
     
-    /// Tính toán độ giật (Jitter) dựa trên sự biến thiên của gia tốc hoặc hướng
+    /// Tính toán độ giật (Jitter/Tremor) dựa trên sự biến thiên vận tốc đã được làm mượt
     private static func calculateJitter(points: [StrokePoint]) -> Double {
-        guard points.count > 2 else { return 0 }
+        let rawSpeeds = points.compactMap { $0.speed }
+        guard rawSpeeds.count > 3 else { return 0 }
         
-        var speedVariations: [Double] = []
-        for i in 2..<points.count {
-            if let v1 = points[i-1].speed, let v2 = points[i].speed {
-                // Sự thay đổi tốc độ đột ngột
-                speedVariations.append(abs(v2 - v1))
+        // Làm mượt vận tốc bằng Moving Average (cửa sổ 3 điểm) để lọc nhiễu sensor
+        var smoothedSpeeds: [Double] = []
+        for i in 1..<(rawSpeeds.count - 1) {
+            let avg = (rawSpeeds[i-1] + rawSpeeds[i] + rawSpeeds[i+1]) / 3.0
+            smoothedSpeeds.append(avg)
+        }
+        
+        var variations: [Double] = []
+        for i in 1..<smoothedSpeeds.count {
+            let diff = abs(smoothedSpeeds[i] - smoothedSpeeds[i-1])
+            // Giới hạn vật lý: Một cú giật (variation) không thể quá 200 pt/s trong 0.01s (trừ khi là rác dữ liệu)
+            if diff < 200 {
+                variations.append(diff)
             }
         }
         
-        if speedVariations.isEmpty { return 0 }
+        if variations.isEmpty { return 0 }
         
-        // Trả về trung bình của các biến thiên tốc độ (có thể coi là một chỉ số jitter thô)
-        return speedVariations.reduce(0, +) / Double(speedVariations.count)
+        let avgJitter = variations.reduce(0, +) / Double(variations.count)
+        
+        // Capping cuối cùng: Giới hạn Tremor Index thực tế tối đa là 100
+        // (Đây là ngưỡng cực kỳ cao, thường gặp ở bệnh nhân Parkinson nặng)
+        return min(avgJitter, 100.0)
     }
 }

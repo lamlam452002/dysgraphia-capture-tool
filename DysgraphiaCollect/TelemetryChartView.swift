@@ -1,21 +1,32 @@
 import SwiftUI
 import Charts
 
+// Model chung cho biểu đồ để tránh lỗi kiểu dữ liệu bộ dữ liệu (tuples)
+struct TelemetryChartPoint: Identifiable {
+    let id = UUID()
+    let time: TimeInterval
+    let value: Double
+    let strokeID: String
+}
+
 struct TelemetryChartView: View {
     let session: HandwritingSession
     @Binding var currentTime: TimeInterval
     
-    // Model chung cho biểu đồ để tránh lỗi kiểu dữ liệu bộ dữ liệu (tuples)
-    struct ChartPoint: Identifiable {
-        let id = UUID()
-        let time: TimeInterval
-        let value: Double
-        let strokeID: String
-    }
-    
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            TelemetryChartContent(session: session, currentTime: $currentTime)
+                .padding(.vertical)
+        }
+    }
+}
+
+struct TelemetryChartContent: View {
+    let session: HandwritingSession
+    @Binding var currentTime: TimeInterval
+    
+    var body: some View {
+        VStack(spacing: 16) {
                 // 1. Lực nhấn (Force)
                 MetricChartSection(
                     title: "Pen Pressure (Force)",
@@ -23,14 +34,14 @@ struct TelemetryChartView: View {
                     color: .orange,
                     currentTime: currentTime,
                     data: session.strokes.flatMap { stroke in
-                        stroke.points.map { ChartPoint(time: $0.timeOffset, value: $0.force, strokeID: stroke.id.uuidString) }
+                        stroke.points.map { TelemetryChartPoint(time: $0.timeOffset, value: $0.force, strokeID: stroke.id.uuidString) }
                     }
                 ) { point in
                     LineMark(
                         x: .value("Time", point.time),
                         y: .value("Force", point.value)
                     )
-                    .foregroundStyle(by: .value("Stroke", point.strokeID))
+                    .foregroundStyle(.orange)
                 }
                 
                 // 2. Tốc độ (Speed)
@@ -41,7 +52,7 @@ struct TelemetryChartView: View {
                     currentTime: currentTime,
                     data: session.strokes.flatMap { stroke in
                         stroke.points.compactMap { p in
-                            p.speed.map { ChartPoint(time: p.timeOffset, value: $0, strokeID: stroke.id.uuidString) }
+                            p.speed.map { TelemetryChartPoint(time: p.timeOffset, value: $0, strokeID: stroke.id.uuidString) }
                         }
                     }
                 ) { point in
@@ -64,7 +75,7 @@ struct TelemetryChartView: View {
                     color: .purple,
                     currentTime: currentTime,
                     data: session.strokes.flatMap { stroke in
-                        stroke.points.map { ChartPoint(time: $0.timeOffset, value: $0.altitude, strokeID: stroke.id.uuidString) }
+                        stroke.points.map { TelemetryChartPoint(time: $0.timeOffset, value: $0.altitude, strokeID: stroke.id.uuidString) }
                     }
                 ) { point in
                     LineMark(
@@ -80,7 +91,7 @@ struct TelemetryChartView: View {
                     color: .teal, // Dùng màu Teal để dễ phân biệt với các biểu đồ khác
                     currentTime: currentTime,
                     data: session.strokes.flatMap { stroke in
-                        stroke.points.map { ChartPoint(time: $0.timeOffset, value: $0.azimuth, strokeID: stroke.id.uuidString) }
+                        stroke.points.map { TelemetryChartPoint(time: $0.timeOffset, value: $0.azimuth, strokeID: stroke.id.uuidString) }
                     }
                 ) { point in
                     LineMark(
@@ -98,7 +109,7 @@ struct TelemetryChartView: View {
                     currentTime: currentTime,
                     data: session.strokes.compactMap { stroke in
                         guard let h = stroke.height, let t = stroke.points.first?.timeOffset else { return nil }
-                        return ChartPoint(time: t, value: h, strokeID: stroke.id.uuidString)
+                        return TelemetryChartPoint(time: t, value: h, strokeID: stroke.id.uuidString)
                     }
                 ) { point in
                     BarMark(
@@ -117,7 +128,7 @@ struct TelemetryChartView: View {
                     currentTime: currentTime,
                     data: session.strokes.compactMap { stroke in
                         guard let b = stroke.baselineY, let t = stroke.points.first?.timeOffset else { return nil }
-                        return ChartPoint(time: t, value: b, strokeID: stroke.id.uuidString)
+                        return TelemetryChartPoint(time: t, value: b, strokeID: stroke.id.uuidString)
                     }
                 ) { point in
                     LineMark(
@@ -141,7 +152,7 @@ struct TelemetryChartView: View {
                     currentTime: currentTime,
                     data: session.strokes.compactMap { stroke in
                         guard let s = stroke.spacingToPrevious, let t = stroke.points.first?.timeOffset else { return nil }
-                        return ChartPoint(time: t, value: s, strokeID: stroke.id.uuidString)
+                        return TelemetryChartPoint(time: t, value: s, strokeID: stroke.id.uuidString)
                     }
                 ) { point in
                     BarMark(
@@ -154,7 +165,6 @@ struct TelemetryChartView: View {
                 
                 // 8. Tremor Index (Run tay)
                 tremorIndexSummary
-            }
         }
     }
     
@@ -167,7 +177,7 @@ struct TelemetryChartView: View {
             data: session.strokes.compactMap { stroke in
                 let j = stroke.tremorIndex
                 guard let t = stroke.points.first?.timeOffset else { return nil }
-                return ChartPoint(time: t, value: j, strokeID: stroke.id.uuidString)
+                return TelemetryChartPoint(time: t, value: j, strokeID: stroke.id.uuidString)
             }
         ) { point in
             LineMark(
@@ -197,8 +207,8 @@ struct MetricChartSection<Content: ChartContent>: View {
     let units: String
     let color: Color
     let currentTime: TimeInterval
-    let data: [TelemetryChartView.ChartPoint]
-    @ChartContentBuilder var content: (TelemetryChartView.ChartPoint) -> Content
+    let data: [TelemetryChartPoint]
+    @ChartContentBuilder var content: (TelemetryChartPoint) -> Content
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {

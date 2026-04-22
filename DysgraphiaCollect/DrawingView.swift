@@ -6,7 +6,7 @@ struct DrawingView: UIViewRepresentable {
     @Binding var session: HandwritingSession?
     
     func makeUIView(context: Context) -> PKCanvasView {
-        canvasView.drawingPolicy = .anyInput
+        canvasView.drawingPolicy = .pencilOnly
         canvasView.delegate = context.coordinator
         
         // Cài đặt PencilKit để nhận dữ liệu thô nhạy hơn

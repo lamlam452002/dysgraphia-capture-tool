@@ -30,6 +30,7 @@ final class ReviewViewModel: ObservableObject {
     @Published var selectedExportFormat: ExportFormat = .csv
     @Published var showExportSuccess = false
     @Published var exportedURL: URL?
+    @Published var isExporting: Bool = false
     
     // Rename state
     @Published var folderToRename: String = ""
@@ -111,12 +112,17 @@ final class ReviewViewModel: ObservableObject {
         guard var session = selectedSession else { return }
         session.annotation = annotation
         ExportManager.saveSession(session)
-        if let url = ExportManager.exportSession(session, format: selectedExportFormat) {
-            self.exportedURL = url
-            self.showExportSuccess = true
+        
+        self.isExporting = true
+        Task {
+            if let url = await ExportManager.exportSessionAsync(session, format: selectedExportFormat, showAnalysis: self.showDiagnosticOverlay) {
+                self.exportedURL = url
+                self.showExportSuccess = true
+            }
+            self.isExporting = false
+            self.hasUnsavedChanges = false
+            self.loadSessions()
         }
-        self.hasUnsavedChanges = false
-        loadSessions()
     }
     
     // MARK: - Folder Operations (Student-level)
@@ -250,6 +256,27 @@ struct ExpertReviewView: View {
         .sheet(isPresented: $viewModel.showExportSuccess) {
             if let url = viewModel.exportedURL {
                 ShareSheet(activityItems: [url])
+            }
+        }
+        .overlay {
+            if viewModel.isExporting {
+                ZStack {
+                    Color.black.opacity(0.4).ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(2.0)
+                            .tint(.white)
+                        Text("Exporting Full Session...")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Text("Đang dựng video chữ viết và lưu biểu đồ...")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .padding(32)
+                    .background(Color(.systemGray6).opacity(0.2))
+                    .cornerRadius(16)
+                }
             }
         }
     }

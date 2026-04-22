@@ -1,5 +1,7 @@
 import Foundation
 import SwiftUI
+import AVFoundation
+import CoreImage
 
 enum ExportFormat: String, CaseIterable, Identifiable {
     case csv = "CSV"
@@ -68,19 +70,19 @@ class ExportManager {
     
     @MainActor
     @discardableResult
-    static func exportSession(_ session: HandwritingSession, format: ExportFormat) -> URL? {
+    static func exportSessionAsync(_ session: HandwritingSession, format: ExportFormat, showAnalysis: Bool = false) async -> URL? {
         switch format {
         case .csv:
             return exportToCSV(session)
         case .json:
             return exportToJSON(session)
         case .bundle:
-            return exportToBundle(session)
+            return await exportToBundleAsync(session, showAnalysis: showAnalysis)
         }
     }
     
     @MainActor
-    private static func exportToBundle(_ session: HandwritingSession) -> URL? {
+    private static func exportToBundleAsync(_ session: HandwritingSession, showAnalysis: Bool) async -> URL? {
         let bundleName = "dysgraphia_\(session.studentID)_\(session.id.uuidString.prefix(6))"
         let bundleURL = FileManager.default.temporaryDirectory.appendingPathComponent(bundleName, isDirectory: true)
         
@@ -111,16 +113,32 @@ class ExportManager {
             // Dựng lại khung hình Landscape iPad để chụp tĩnh (4:3)
             let captureFrame = ZStack {
                 NotebookBackground()
-                PlaybackCanvas(session: session, currentTime: .constant(maxTime + 1.0))
+                PlaybackCanvas(session: session, currentTime: .constant(maxTime + 1.0), showAnalysis: showAnalysis)
             }.frame(width: 1080, height: 810)
             
             let renderer = ImageRenderer(content: captureFrame)
             renderer.scale = 2.0 // Gấp đôi độ phân giải ảnh (Retina)
             
             if let image = renderer.uiImage, let data = image.pngData() {
-                let pngURL = bundleURL.appendingPathComponent("\(bundleName).png")
+                let pngURL = bundleURL.appendingPathComponent("\(bundleName)_handwriting.png")
                 try data.write(to: pngURL)
             }
+            
+            // 4. PNG Image Render cho TelemetryChart
+            let chartFrame = TelemetryChartContent(session: session, currentTime: .constant(maxTime + 1.0))
+                .padding()
+                .background(Color.white) // Nền trắng để tránh ảnh bị trong suốt/đen
+                .frame(width: 1080, height: 1400) // Chiều cao lớn hơn để hiển thị hết các biểu đồ
+            let chartRenderer = ImageRenderer(content: chartFrame)
+            chartRenderer.scale = 2.0
+            if let image = chartRenderer.uiImage, let data = image.pngData() {
+                let chartURL = bundleURL.appendingPathComponent("\(bundleName)_chart.png")
+                try data.write(to: chartURL)
+            }
+            
+            // 5. Video (MP4) Render cho PlaybackCanvas
+            let videoURL = bundleURL.appendingPathComponent("\(bundleName)_video.mp4")
+            try? await createVideo(session: session, maxTime: maxTime + 1.0, destURL: videoURL, showAnalysis: showAnalysis)
             
             return bundleURL
             
@@ -128,6 +146,82 @@ class ExportManager {
             print("Error creating folder bundle: \(error)")
             return nil
         }
+    }
+    
+    @MainActor
+    private static func createVideo(session: HandwritingSession, maxTime: TimeInterval, destURL: URL, showAnalysis: Bool) async throws {
+        if FileManager.default.fileExists(atPath: destURL.path) {
+            try FileManager.default.removeItem(at: destURL)
+        }
+        
+        guard let writer = try? AVAssetWriter(outputURL: destURL, fileType: .mp4) else { return }
+        
+        let settings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: 1080,
+            AVVideoHeightKey: 810
+        ]
+        
+        guard writer.canApply(outputSettings: settings, forMediaType: .video) else { return }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.expectsMediaDataInRealTime = false
+        
+        let sourcePixelBufferAttributes: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
+            kCVPixelBufferWidthKey as String: 1080,
+            kCVPixelBufferHeightKey as String: 810,
+            kCVPixelBufferCGImageCompatibilityKey as String: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+        ]
+        
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: sourcePixelBufferAttributes)
+        
+        guard writer.canAdd(input) else { return }
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+        
+        let fps = 30.0
+        let totalFrames = Int(maxTime * fps)
+        let ciContext = CIContext()
+        
+        for frame in 0...totalFrames {
+            let currentTime = Double(frame) / fps
+            let captureFrame = ZStack {
+                NotebookBackground()
+                PlaybackCanvas(session: session, currentTime: .constant(currentTime), showAnalysis: showAnalysis)
+            }.frame(width: 1080, height: 810)
+            
+            let renderer = ImageRenderer(content: captureFrame)
+            renderer.scale = 1.0
+            
+            if let cgImage = renderer.cgImage, let pool = adaptor.pixelBufferPool {
+                var pixelBuffer: CVPixelBuffer?
+                CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
+                
+                if let buffer = pixelBuffer {
+                    CVPixelBufferLockBaseAddress(buffer, [])
+                    let ciImage = CIImage(cgImage: cgImage)
+                    ciContext.render(ciImage, to: buffer)
+                    CVPixelBufferUnlockBaseAddress(buffer, [])
+                    
+                    let presentationTime = CMTimeMake(value: Int64(frame * 600), timescale: Int32(fps * 600))
+                    
+                    while !input.isReadyForMoreMediaData {
+                        try await Task.sleep(nanoseconds: 10_000_000)
+                    }
+                    
+                    adaptor.append(buffer, withPresentationTime: presentationTime)
+                }
+            }
+            
+            if frame % 15 == 0 {
+                await Task.yield()
+            }
+        }
+        
+        input.markAsFinished()
+        await writer.finishWriting()
     }
     
     private static func exportToJSON(_ session: HandwritingSession) -> URL? {

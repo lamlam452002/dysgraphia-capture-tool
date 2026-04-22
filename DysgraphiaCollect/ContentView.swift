@@ -105,8 +105,8 @@ struct ContentView: View {
     }
     
     private func startCapture() {
-        // Clear previous drawing on the literal canvas
-        canvasView.drawing = PKDrawing()
+        // Tạo mới hoàn toàn instance canvas để không bị trùng lặp state từ session cũ
+        self.canvasView = PKCanvasView()
         
         // Initialize new session
         currentSession = HandwritingSession(studentID: studentID, strokes: [])
@@ -155,10 +155,14 @@ struct CaptureView: View {
                         .foregroundColor(.green)
                 }
                 Spacer()
-                Button("Finish & Save") {
-                    saveSession()
+                
+                HStack(spacing: 12) {
+                    
+                    Button("Finish & Save") {
+                        saveSession()
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
             }
             .padding()
             .background(.thinMaterial)
@@ -169,6 +173,10 @@ struct CaptureView: View {
             }
         }
         .navigationBarHidden(true)
+        .onAppear {
+            // Cưỡng bức xóa trắng canvas khi màn hình capture xuất hiện
+            canvasView.drawing = PKDrawing()
+        }
     }
     
     private func saveSession() {
